@@ -5,6 +5,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -15,16 +16,28 @@ type Config struct {
 	JWTSecret  string
 	JWTExpiry  time.Duration
 	CacheTTL   time.Duration
+
+	// RateLimitRPS / RateLimitBurst configure the per-client token bucket.
+	RateLimitRPS   float64
+	RateLimitBurst int
+
+	// Circuit breaker for Redis.
+	CBThreshold int
+	CBCooldown  time.Duration
 }
 
 func Load() Config {
 	return Config{
-		ServerPort: getenv("SERVER_PORT", "8080"),
-		MySQLDSN:   getenv("MYSQL_DSN", "taskuser:taskpass@tcp(localhost:3306)/taskdb?parseTime=true&charset=utf8mb4&loc=UTC"),
-		RedisAddr:  getenv("REDIS_ADDR", "localhost:6379"),
-		JWTSecret:  getenv("JWT_SECRET", "dev-secret-change-me"),
-		JWTExpiry:  getenvDuration("JWT_EXPIRY", 24*time.Hour),
-		CacheTTL:   getenvDuration("CACHE_TTL", 5*time.Minute),
+		ServerPort:     getenv("SERVER_PORT", "8080"),
+		MySQLDSN:       getenv("MYSQL_DSN", "taskuser:taskpass@tcp(localhost:3306)/taskdb?parseTime=true&charset=utf8mb4&loc=UTC"),
+		RedisAddr:      getenv("REDIS_ADDR", "localhost:6379"),
+		JWTSecret:      getenv("JWT_SECRET", "dev-secret-change-me"),
+		JWTExpiry:      getenvDuration("JWT_EXPIRY", 24*time.Hour),
+		CacheTTL:       getenvDuration("CACHE_TTL", 5*time.Minute),
+		RateLimitRPS:   getenvFloat("RATE_LIMIT_RPS", 10),
+		RateLimitBurst: getenvInt("RATE_LIMIT_BURST", 20),
+		CBThreshold:    getenvInt("CB_THRESHOLD", 3),
+		CBCooldown:     getenvDuration("CB_COOLDOWN", 30*time.Second),
 	}
 }
 
@@ -39,6 +52,24 @@ func getenvDuration(key string, def time.Duration) time.Duration {
 	if v := os.Getenv(key); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
+		}
+	}
+	return def
+}
+
+func getenvFloat(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
+}
+
+func getenvInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
 		}
 	}
 	return def

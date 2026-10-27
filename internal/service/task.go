@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"taskmanager/internal/domain"
 	"taskmanager/internal/cache"
+	"taskmanager/internal/domain"
 	"taskmanager/internal/store"
 )
 
@@ -111,29 +111,33 @@ func (ts *TaskService) Update(ctx context.Context, callerID, taskID int64, in Up
 	return updated, nil
 }
 
-// List returns the team's tasks with filters. A Redis cache is consulted and
-// populated using a key that includes the team, filters and pagination.
-func (ts *TaskService) List(ctx context.Context, callerID int64, teamID int64, status *domain.TaskStatus, assigneeID *int64, limit, offset int) ([]domain.Task, error) {
+// TaskListResult is a page of tasks plus the cursor for the next page.
+type TaskListResult struct {
+	Tasks      []domain.Task `json:"tasks"`
+	NextCursor *int64        `json:"next_cursor,omitempty"`
+}
+
+// List returns the team's tasks with filters and cursor pagination. A Redis
+// cache is consulted and populated using a key that includes the team,
+// filters, cursor and limit.
+func (ts *TaskService) List(ctx context.Context, callerID int64, teamID int64, status *domain.TaskStatus, assigneeID *int64, cursor *int64, limit int) (TaskListResult, error) {
 	if _, err := ts.memberRole(ctx, teamID, callerID); err != nil {
-		return nil, err
+		return TaskListResult{}, err
 	}
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	if offset < 0 {
-		offset = 0
+
+	if tasks, next, ok := ts.cache.Get(ctx, teamID, status, assigneeID, cursor, limit); ok {
+		return TaskListResult{Tasks: tasks, NextCursor: next}, nil
 	}
 
-	if cached, ok := ts.cache.Get(ctx, teamID, status, assigneeID, limit, offset); ok {
-		return cached, nil
-	}
-
-	tasks, err := ts.store.ListTasks(ctx, teamID, status, assigneeID, limit, offset)
+	page, err := ts.store.ListTasks(ctx, teamID, status, assigneeID, cursor, limit)
 	if err != nil {
-		return nil, err
+		return TaskListResult{}, err
 	}
-	ts.cache.Set(ctx, teamID, status, assigneeID, limit, offset, tasks)
-	return tasks, nil
+	ts.cache.Set(ctx, teamID, status, assigneeID, cursor, limit, page.Tasks, page.NextCursor)
+	return TaskListResult{Tasks: page.Tasks, NextCursor: page.NextCursor}, nil
 }
 
 func (ts *TaskService) History(ctx context.Context, callerID, taskID int64) ([]domain.TaskHistory, error) {

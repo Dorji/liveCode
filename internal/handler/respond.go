@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -15,7 +15,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("write response: %v", err)
+		slog.Error("write response", "error", err)
 	}
 }
 
@@ -45,7 +45,7 @@ func mapError(err error) (int, string) {
 	case errors.Is(err, domain.ErrAssigneeNotInTeam):
 		return http.StatusBadRequest, "assignee must be a member of the team"
 	default:
-		log.Printf("unhandled error: %v", err)
+		slog.Error("unhandled error", "error", err)
 		return http.StatusInternalServerError, "internal error"
 	}
 }
@@ -108,20 +108,14 @@ func optionalQueryStatus(r *http.Request) (*domain.TaskStatus, error) {
 	return &s, nil
 }
 
-func queryLimitOffset(r *http.Request) (int, int, error) {
-	limit, offset := 20, 0
-	var err error
+func queryLimit(r *http.Request) (int, error) {
+	limit := 20
 	if v := r.URL.Query().Get("limit"); v != "" {
-		limit, err = strconv.Atoi(v)
+		n, err := strconv.Atoi(v)
 		if err != nil {
-			return 0, 0, domain.ErrBadRequest
+			return 0, domain.ErrBadRequest
 		}
+		limit = n
 	}
-	if v := r.URL.Query().Get("offset"); v != "" {
-		offset, err = strconv.Atoi(v)
-		if err != nil {
-			return 0, 0, domain.ErrBadRequest
-		}
-	}
-	return limit, offset, nil
+	return limit, nil
 }

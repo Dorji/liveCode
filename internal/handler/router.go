@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"log"
 	"net/http"
-	"time"
 
 	"taskmanager/internal/middleware"
 	"taskmanager/internal/service"
@@ -17,7 +15,7 @@ type Handlers struct {
 	Stats *service.StatsService
 }
 
-func NewRouter(h *Handlers, parser middleware.TokenParser) http.Handler {
+func NewRouter(h *Handlers, parser middleware.TokenParser, rl *middleware.RateLimiter) http.Handler {
 	mux := http.NewServeMux()
 
 	// Public.
@@ -44,13 +42,6 @@ func NewRouter(h *Handlers, parser middleware.TokenParser) http.Handler {
 	mux.HandleFunc("GET /openapi.yaml", serveOpenAPI)
 	mux.HandleFunc("GET /swagger", serveSwaggerUI)
 
-	return logRequests(mux)
-}
-
-func logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
-	})
+	// request id + structured request log -> rate limit -> routes
+	return middleware.RequestID(middleware.RequestLogger(rl.Middleware(mux)))
 }

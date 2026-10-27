@@ -44,13 +44,13 @@ func (s TaskStatus) Valid() bool {
 
 // Sentinel errors are mapped to HTTP statuses by the handler layer.
 var (
-	ErrNotFound           = errors.New("not found")
-	ErrConflict           = errors.New("conflict")
-	ErrForbidden          = errors.New("forbidden")
-	ErrUnauthorized       = errors.New("unauthorized")
-	ErrBadRequest         = errors.New("bad request")
-	ErrEmailTaken         = errors.New("email already registered")
-	ErrAssigneeNotInTeam  = errors.New("assignee must be a member of the team")
+	ErrNotFound          = errors.New("not found")
+	ErrConflict          = errors.New("conflict")
+	ErrForbidden         = errors.New("forbidden")
+	ErrUnauthorized      = errors.New("unauthorized")
+	ErrBadRequest        = errors.New("bad request")
+	ErrEmailTaken        = errors.New("email already registered")
+	ErrAssigneeNotInTeam = errors.New("assignee must be a member of the team")
 )
 
 type User struct {

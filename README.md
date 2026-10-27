@@ -31,8 +31,17 @@ docker compose up --build
 | `JWT_SECRET`  | `dev-secret-change-me`                                | Секрет для подписи JWT      |
 | `JWT_EXPIRY`  | `24h`                                                 | Время жизни токена          |
 | `CACHE_TTL`   | `5m`                                                  | TTL кеша списка задач       |
+| `RATE_LIMIT_RPS`   | `10`                                           | Лимит запросов/с на клиента (IP) |
+| `RATE_LIMIT_BURST` | `20`                                           | Размер burst токен-бакета   |
+| `CB_THRESHOLD`     | `3`                                            | Порог ошибок circuit breaker (Redis) |
+| `CB_COOLDOWN`      | `30s`                                          | Cooldown circuit breaker    |
 
-Redis опционален: если он недоступен, сервис продолжает работать без кеша.
+Redis опционален: если он недоступен, сервис продолжает работать без кеша
+(circuit breaker «замыкается» и быстро пропускает вызовы к Redis, чтобы не
+копить таймауты).
+Rate limiting применяется ко всем эндпоинтам по IP клиента (token bucket,
+`429 Too Many Requests` при превышении).
+Логи пишутся в stdout в JSON (`log/slog`) с `request_id` на каждый запрос.
 
 ## Миграции
 
@@ -72,9 +81,11 @@ curl -s -X POST $BASE/api/v1/tasks -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"team_id":1,"title":"Fix auth","description":"...","assignee_id":2}'
 
-# Список задач с фильтрами и пагинацией
-curl -s "$BASE/api/v1/tasks?team_id=1&status=todo&limit=20&offset=0" \
+# Список задач с фильтрами и курсорной пагинацией
+curl -s "$BASE/api/v1/tasks?team_id=1&status=todo&limit=20" \
   -H "Authorization: Bearer $TOKEN"
+# -> {"data":{"tasks":[...],"next_cursor":42}}
+# следующая страница: ?team_id=1&limit=20&cursor=42
 
 # Обновление задачи (version для optimistic locking берётся из текущего состояния)
 curl -s -X PUT $BASE/api/v1/tasks/1 -H "Authorization: Bearer $TOKEN" \
@@ -92,7 +103,7 @@ curl -s $BASE/api/v1/teams/1/stats -H "Authorization: Bearer $TOKEN"
 ## Тестирование
 
 ```bash
-# unit-тесты (права доступа) — без внешних зависимостей
+# unit-тесты (RBAC и rate limiter) — без внешних зависимостей
 go test ./...
 
 # интеграционный тест SQL-отчёта — нужен MySQL
@@ -110,9 +121,9 @@ internal/config/     конфигурация из env
 internal/domain/     сущности, роли, статусы, ошибки
 internal/store/      MySQL: SQL, транзакции, миграции, SQL-отчёт
 internal/service/    бизнес-логика и RBAC
-internal/cache/      Redis-кеш списка задач
+internal/cache/      Redis-кеш списка задач + circuit breaker
 internal/handler/    HTTP-обработчики и роутер
-internal/middleware/ JWT-аутентификация
+internal/middleware/ JWT-аутентификация, rate limiting, структурированные логи
 migrations/          SQL-миграции (embed)
 docs/                OpenAPI spec (embed)
 ```

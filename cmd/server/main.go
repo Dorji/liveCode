@@ -4,7 +4,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,11 +14,14 @@ import (
 	"taskmanager/internal/cache"
 	"taskmanager/internal/config"
 	"taskmanager/internal/handler"
+	"taskmanager/internal/middleware"
 	"taskmanager/internal/service"
 	"taskmanager/internal/store"
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg := config.Load()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -26,22 +29,22 @@ func main() {
 
 	st, err := store.New(cfg.MySQLDSN)
 	if err != nil {
-		log.Fatalf("open store: %v", err)
+		fatal("open store", err)
 	}
 	defer st.DB().Close()
 
 	// Wait for MySQL (useful when the container starts before the DB).
 	if err := waitFor(ctx, st.Ping, 30*time.Second); err != nil {
-		log.Fatalf("mysql not ready: %v", err)
+		fatal("mysql not ready", err)
 	}
 	if err := st.Migrate(ctx); err != nil {
-		log.Fatalf("migrate: %v", err)
+		fatal("migrate", err)
 	}
 
-	tc := cache.New(cfg.RedisAddr, cfg.CacheTTL)
+	tc := cache.New(cfg.RedisAddr, cfg.CacheTTL, cache.WithCircuitBreaker(cfg.CBThreshold, cfg.CBCooldown))
 	if err := tc.Ping(ctx); err != nil {
 		// Redis is optional: the service keeps working with the cache disabled.
-		log.Printf("warning: redis unavailable (%v); cache disabled", err)
+		slog.Warn("redis unavailable; cache disabled", "error", err)
 	}
 
 	authSvc := service.NewAuthService(st, cfg.JWTSecret, cfg.JWTExpiry)
@@ -49,8 +52,11 @@ func main() {
 	taskSvc := service.NewTaskService(st, tc)
 	statsSvc := service.NewStatsService(st)
 
+	rl := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
+	defer rl.Stop()
+
 	h := &handler.Handlers{Auth: authSvc, Teams: teamSvc, Tasks: taskSvc, Stats: statsSvc}
-	router := handler.NewRouter(h, authSvc)
+	router := handler.NewRouter(h, authSvc, rl)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.ServerPort,
@@ -58,9 +64,9 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("listening on :%s", cfg.ServerPort)
+		slog.Info("server started", "port", cfg.ServerPort)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server: %v", err)
+			fatal("server", err)
 		}
 	}()
 
@@ -69,9 +75,14 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown: %v", err)
+		slog.Error("shutdown", "error", err)
 	}
-	log.Println("server stopped")
+	slog.Info("server stopped")
+}
+
+func fatal(msg string, err error) {
+	slog.Error(msg, "error", err)
+	os.Exit(1)
 }
 
 // waitFor retries fn until it succeeds or the timeout elapses.

@@ -38,18 +38,23 @@ func (h *Handlers) listTasks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	limit, offset, err := queryLimitOffset(r)
+	cursor, err := optionalQueryInt64(r, "cursor")
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	limit, err := queryLimit(r)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 
-	tasks, err := h.Tasks.List(r.Context(), userID(r), teamID, status, assigneeID, limit, offset)
+	result, err := h.Tasks.List(r.Context(), userID(r), teamID, status, assigneeID, cursor, limit)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeData(w, http.StatusOK, tasks)
+	writeData(w, http.StatusOK, result)
 }
 
 func (h *Handlers) updateTask(w http.ResponseWriter, r *http.Request) {

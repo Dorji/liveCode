@@ -177,8 +177,17 @@ func (s *Store) getTask(ctx context.Context, q queryer, id int64) (domain.Task, 
 	return t, err
 }
 
-// ListTasks returns the team's tasks with optional filters and pagination.
-func (s *Store) ListTasks(ctx context.Context, teamID int64, status *domain.TaskStatus, assigneeID *int64, limit, offset int) ([]domain.Task, error) {
+// TaskPage is one page of tasks plus a cursor for the next page.
+type TaskPage struct {
+	Tasks      []domain.Task
+	NextCursor *int64
+}
+
+// ListTasks returns the team's tasks with optional filters, ordered by id DESC.
+// It uses cursor (keyset) pagination: cursor is the id of the last item of the
+// previous page (nil for the first page). It fetches limit+1 rows to detect
+// whether a next page exists.
+func (s *Store) ListTasks(ctx context.Context, teamID int64, status *domain.TaskStatus, assigneeID *int64, cursor *int64, limit int) (TaskPage, error) {
 	query := `SELECT id, team_id, title, description, status, created_by, assignee_id,
 	                 created_at, updated_at, closed_at, version
 	          FROM tasks WHERE team_id = ?`
@@ -191,12 +200,16 @@ func (s *Store) ListTasks(ctx context.Context, teamID int64, status *domain.Task
 		query += ` AND assignee_id = ?`
 		args = append(args, *assigneeID)
 	}
-	query += ` ORDER BY id DESC LIMIT ? OFFSET ?`
-	args = append(args, limit, offset)
+	if cursor != nil {
+		query += ` AND id < ?`
+		args = append(args, *cursor)
+	}
+	query += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit+1)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return TaskPage{}, err
 	}
 	defer rows.Close()
 
@@ -204,11 +217,21 @@ func (s *Store) ListTasks(ctx context.Context, teamID int64, status *domain.Task
 	for rows.Next() {
 		t, err := scanTask(rows)
 		if err != nil {
-			return nil, err
+			return TaskPage{}, err
 		}
 		tasks = append(tasks, t)
 	}
-	return tasks, rows.Err()
+	if err := rows.Err(); err != nil {
+		return TaskPage{}, err
+	}
+
+	page := TaskPage{Tasks: tasks}
+	if len(tasks) > limit {
+		page.Tasks = tasks[:limit]
+		last := tasks[limit-1].ID
+		page.NextCursor = &last
+	}
+	return page, nil
 }
 
 func (s *Store) ListHistory(ctx context.Context, taskID int64) ([]domain.TaskHistory, error) {

@@ -46,28 +46,28 @@ func TestTeamStats(t *testing.T) {
 	cleanTables(t, ctx, st.DB())
 
 	now := time.Now().UTC()
-	seedUser(t, ctx, st.DB(), "alice@example.com", "Alice") // id 1
-	seedUser(t, ctx, st.DB(), "bob@example.com", "Bob")     // id 2
-	seedUser(t, ctx, st.DB(), "carol@example.com", "Carol") // id 3
+	aliceID := seedUser(t, ctx, st.DB(), "alice@example.com", "Alice")
+	bobID := seedUser(t, ctx, st.DB(), "bob@example.com", "Bob")
+	carolID := seedUser(t, ctx, st.DB(), "carol@example.com", "Carol")
 
-	teamID := seedTeam(t, ctx, st.DB(), "team", 1)
-	seedMember(t, ctx, st.DB(), teamID, 1, "owner")
-	seedMember(t, ctx, st.DB(), teamID, 2, "member")
-	seedMember(t, ctx, st.DB(), teamID, 3, "member")
+	teamID := seedTeam(t, ctx, st.DB(), "team", aliceID)
+	seedMember(t, ctx, st.DB(), teamID, aliceID, "owner")
+	seedMember(t, ctx, st.DB(), teamID, bobID, "member")
+	seedMember(t, ctx, st.DB(), teamID, carolID, "member")
 
 	// Bob closes 2 tasks within the last 30 days, Carol 1; Bob also has an old
 	// closed task (outside 30 days). This shapes both top_assignees and avg close.
-	t1 := seedTask(t, ctx, st.DB(), teamID, "t1", 1, idp(2), now.Add(-20*24*time.Hour), now.Add(-10*24*time.Hour), "done")
-	t2 := seedTask(t, ctx, st.DB(), teamID, "t2", 1, idp(2), now.Add(-50*24*time.Hour), now.Add(-40*24*time.Hour), "done")
-	_ = seedTask(t, ctx, st.DB(), teamID, "t3", 1, idp(3), now.Add(-15*24*time.Hour), now.Add(-5*24*time.Hour), "done")
-	_ = seedTask(t, ctx, st.DB(), teamID, "t4", 2, idp(2), now.Add(-3*24*time.Hour), now.Add(-2*24*time.Hour), "done")
-	t5 := seedTask(t, ctx, st.DB(), teamID, "t5", 2, idp(3), now.Add(-1*24*time.Hour), time.Time{}, "in_progress")
-	_ = seedTask(t, ctx, st.DB(), teamID, "t6", 1, nil, now.Add(-1*24*time.Hour), time.Time{}, "todo")
+	t1 := seedTask(t, ctx, st.DB(), teamID, "t1", aliceID, idp(bobID), now.Add(-20*24*time.Hour), now.Add(-10*24*time.Hour), "done")
+	t2 := seedTask(t, ctx, st.DB(), teamID, "t2", aliceID, idp(bobID), now.Add(-50*24*time.Hour), now.Add(-40*24*time.Hour), "done")
+	_ = seedTask(t, ctx, st.DB(), teamID, "t3", aliceID, idp(carolID), now.Add(-15*24*time.Hour), now.Add(-5*24*time.Hour), "done")
+	_ = seedTask(t, ctx, st.DB(), teamID, "t4", bobID, idp(bobID), now.Add(-3*24*time.Hour), now.Add(-2*24*time.Hour), "done")
+	t5 := seedTask(t, ctx, st.DB(), teamID, "t5", bobID, idp(carolID), now.Add(-1*24*time.Hour), time.Time{}, "in_progress")
+	_ = seedTask(t, ctx, st.DB(), teamID, "t6", aliceID, nil, now.Add(-1*24*time.Hour), time.Time{}, "todo")
 
-	seedComment(t, ctx, st.DB(), t1, 1, "a")
-	seedComment(t, ctx, st.DB(), t1, 2, "b")
-	seedComment(t, ctx, st.DB(), t2, 2, "c")
-	seedComment(t, ctx, st.DB(), t5, 3, "d")
+	seedComment(t, ctx, st.DB(), t1, aliceID, "a")
+	seedComment(t, ctx, st.DB(), t1, bobID, "b")
+	seedComment(t, ctx, st.DB(), t2, bobID, "c")
+	seedComment(t, ctx, st.DB(), t5, carolID, "d")
 
 	stats, err := st.TeamStats(ctx, teamID)
 	if err != nil {
@@ -85,10 +85,10 @@ func TestTeamStats(t *testing.T) {
 	if len(stats.TopAssignees) != 2 {
 		t.Fatalf("expected 2 top assignees, got %+v", stats.TopAssignees)
 	}
-	if stats.TopAssignees[0].AssigneeID != 2 || stats.TopAssignees[0].ClosedCount != 2 {
+	if stats.TopAssignees[0].AssigneeID != bobID || stats.TopAssignees[0].ClosedCount != 2 {
 		t.Fatalf("top[0] = %+v, want Bob with 2", stats.TopAssignees[0])
 	}
-	if stats.TopAssignees[1].AssigneeID != 3 || stats.TopAssignees[1].ClosedCount != 1 {
+	if stats.TopAssignees[1].AssigneeID != carolID || stats.TopAssignees[1].ClosedCount != 1 {
 		t.Fatalf("top[1] = %+v, want Carol with 1", stats.TopAssignees[1])
 	}
 
@@ -105,12 +105,18 @@ func TestTeamStats(t *testing.T) {
 
 func idp(v int64) *int64 { return &v }
 
-func seedUser(t *testing.T, ctx context.Context, db *sql.DB, email, name string) {
+func seedUser(t *testing.T, ctx context.Context, db *sql.DB, email, name string) int64 {
 	t.Helper()
-	if _, err := db.ExecContext(ctx,
-		`INSERT INTO users (email, password_hash, name) VALUES (?, 'x', ?)`, email, name); err != nil {
+	res, err := db.ExecContext(ctx,
+		`INSERT INTO users (email, password_hash, name) VALUES (?, 'x', ?)`, email, name)
+	if err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("seed user id: %v", err)
+	}
+	return id
 }
 
 func seedTeam(t *testing.T, ctx context.Context, db *sql.DB, name string, createdBy int64) int64 {
