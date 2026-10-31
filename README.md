@@ -128,4 +128,3 @@ migrations/          SQL-миграции (embed)
 docs/                OpenAPI spec (embed)
 ```
 
-Детальное объяснение решений и соответствия ТЗ — в [SOLUTION.md](SOLUTION.md).
