@@ -1,4 +1,3 @@
-// Command server runs the task-management REST API.
 package main
 
 import (
@@ -33,7 +32,6 @@ func main() {
 	}
 	defer st.DB().Close()
 
-	// Wait for MySQL (useful when the container starts before the DB).
 	if err := waitFor(ctx, st.Ping, 30*time.Second); err != nil {
 		fatal("mysql not ready", err)
 	}
@@ -43,7 +41,6 @@ func main() {
 
 	tc := cache.New(cfg.RedisAddr, cfg.CacheTTL, cache.WithCircuitBreaker(cfg.CBThreshold, cfg.CBCooldown))
 	if err := tc.Ping(ctx); err != nil {
-		// Redis is optional: the service keeps working with the cache disabled.
 		slog.Warn("redis unavailable; cache disabled", "error", err)
 	}
 
@@ -85,7 +82,6 @@ func fatal(msg string, err error) {
 	os.Exit(1)
 }
 
-// waitFor retries fn until it succeeds or the timeout elapses.
 func waitFor(ctx context.Context, fn func(context.Context) error, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

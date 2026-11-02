@@ -24,7 +24,6 @@ func TestRateLimiterAllowsThenBlocks(t *testing.T) {
 		t.Fatalf("first request = %d, want 200", rr.Code)
 	}
 
-	// The single burst token is exhausted; the next request must be rejected.
 	rr = httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusTooManyRequests {
@@ -50,7 +49,6 @@ func TestRateLimiterIsPerClient(t *testing.T) {
 	reqB.RemoteAddr = "192.0.2.2:1234"
 
 	h.ServeHTTP(httptest.NewRecorder(), reqA)
-	// A different client has its own bucket and must not be throttled.
 	rrB := httptest.NewRecorder()
 	h.ServeHTTP(rrB, reqB)
 	if rrB.Code != http.StatusOK {

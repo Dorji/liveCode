@@ -1,6 +1,3 @@
-// Package config loads the service configuration from environment variables.
-// Every value has a sane local-development default and can be overridden
-// through the environment (no hardcoded secrets or addresses in production).
 package config
 
 import (
@@ -17,11 +14,9 @@ type Config struct {
 	JWTExpiry  time.Duration
 	CacheTTL   time.Duration
 
-	// RateLimitRPS / RateLimitBurst configure the per-client token bucket.
 	RateLimitRPS   float64
 	RateLimitBurst int
 
-	// Circuit breaker for Redis.
 	CBThreshold int
 	CBCooldown  time.Duration
 }

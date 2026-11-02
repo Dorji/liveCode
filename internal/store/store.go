@@ -1,5 +1,3 @@
-// Package store implements persistence for MySQL. It owns SQL, transactions
-// and mapping rows to domain entities. Business rules live in service.
 package store
 
 import (
@@ -33,11 +31,8 @@ func (s *Store) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
-// DB exposes the underlying pool for integration tests.
 func (s *Store) DB() *sql.DB { return s.db }
 
-// Migrate applies the embedded idempotent schema. Statements are executed one
-// by one so the runtime DSN does not need multiStatements=true.
 func (s *Store) Migrate(ctx context.Context) error {
 	for _, stmt := range splitStatements(migrations.InitSQL) {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
@@ -58,12 +53,10 @@ func splitStatements(script string) []string {
 	return out
 }
 
-// queryer abstracts *sql.DB and *sql.Tx for shared row-reading helpers.
 type queryer interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// scanner abstracts *sql.Row and *sql.Rows for shared scanning helpers.
 type scanner interface {
 	Scan(dest ...any) error
 }

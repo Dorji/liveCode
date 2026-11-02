@@ -15,8 +15,6 @@ func NewStatsService(st *store.Store) *StatsService {
 	return &StatsService{store: st}
 }
 
-// TeamStats returns the SQL report for one team. Only the team's owner/admin
-// may access it; everyone else gets domain.ErrForbidden.
 func (ss *StatsService) TeamStats(ctx context.Context, callerID, teamID int64) (store.TeamStats, error) {
 	m, err := ss.store.GetMember(ctx, teamID, callerID)
 	if err != nil {

@@ -28,8 +28,6 @@ SwaggerUIBundle({ url: '/openapi.yaml', dom_id: '#swagger-ui' });
 </body>
 </html>`
 
-// serveSwaggerUI serves a thin page that renders the OpenAPI spec using the
-// CDN-hosted Swagger UI (requires internet access at view time).
 func serveSwaggerUI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)

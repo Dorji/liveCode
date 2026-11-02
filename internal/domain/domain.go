@@ -1,6 +1,3 @@
-// Package domain holds the core entities, value types and sentinel errors
-// shared across the storage, service and HTTP layers. It has no external
-// dependencies so the rest of the code can reference it freely.
 package domain
 
 import (
@@ -8,7 +5,6 @@ import (
 	"time"
 )
 
-// Role is a team-level role of a member.
 type Role string
 
 const (
@@ -25,7 +21,6 @@ func (r Role) Valid() bool {
 	return false
 }
 
-// TaskStatus is the lifecycle state of a task.
 type TaskStatus string
 
 const (
@@ -42,7 +37,6 @@ func (s TaskStatus) Valid() bool {
 	return false
 }
 
-// Sentinel errors are mapped to HTTP statuses by the handler layer.
 var (
 	ErrNotFound          = errors.New("not found")
 	ErrConflict          = errors.New("conflict")
@@ -88,7 +82,6 @@ type Task struct {
 	Version     int        `json:"version"`
 }
 
-// Change is a single field diff recorded in the task history.
 type Change struct {
 	Field string `json:"field"`
 	Old   any    `json:"old"`

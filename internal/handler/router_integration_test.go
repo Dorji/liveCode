@@ -1,11 +1,5 @@
 //go:build integration
 
-// End-to-end HTTP tests that exercise the real router against a real MySQL
-// (Redis is optional — the cache degrades gracefully).
-//
-// Run with:
-//
-//	make db-up && make test-db && make test-integration
 package handler_test
 
 import (
@@ -28,7 +22,6 @@ import (
 	"taskmanager/internal/store"
 )
 
-// testAPI is a minimal HTTP client for the test server.
 type testAPI struct {
 	base string
 }
@@ -68,8 +61,6 @@ func (a testAPI) do(t *testing.T, method, path, token string, body, out any) int
 	return resp.StatusCode
 }
 
-// newTestServer builds the full router wired to a real MySQL, with a permissive
-// rate limiter so the flow is not throttled. It cleans the tables first.
 func newTestServer(t *testing.T, rps float64, burst int) *httptest.Server {
 	t.Helper()
 
@@ -93,7 +84,6 @@ func newTestServer(t *testing.T, rps float64, burst int) *httptest.Server {
 	}
 	cleanTables(t, ctx, st.DB())
 
-	// Redis is optional: TaskCache degrades gracefully when unavailable.
 	tc := cache.New("localhost:6379", 5*time.Minute)
 
 	authSvc := service.NewAuthService(st, "test-secret", time.Hour)
@@ -158,7 +148,6 @@ func TestHTTPEndToEnd(t *testing.T) {
 	srv := newTestServer(t, 1000, 1000)
 	api := testAPI{base: srv.URL}
 
-	// Register two users.
 	var ra, rb registerResponse
 	if st := api.do(t, http.MethodPost, "/api/v1/register", "", map[string]any{"email": "alice@e2e.com", "password": "secret", "name": "Alice"}, &ra); st != http.StatusCreated {
 		t.Fatalf("register alice = %d", st)
@@ -169,12 +158,10 @@ func TestHTTPEndToEnd(t *testing.T) {
 	tokenA, tokenB := ra.Data.Token, rb.Data.Token
 	bobID := rb.Data.User.ID
 
-	// Unauthenticated request must be rejected.
 	if st := api.do(t, http.MethodGet, "/api/v1/teams", "", nil, nil); st != http.StatusUnauthorized {
 		t.Fatalf("unauth teams = %d, want 401", st)
 	}
 
-	// Create team and invite Bob.
 	var team idResponse
 	if st := api.do(t, http.MethodPost, "/api/v1/teams", tokenA, map[string]any{"name": "Team"}, &team); st != http.StatusCreated {
 		t.Fatalf("create team = %d", st)
@@ -183,7 +170,6 @@ func TestHTTPEndToEnd(t *testing.T) {
 		t.Fatalf("invite bob = %d", st)
 	}
 
-	// Create three tasks.
 	var ids []int64
 	for i := 0; i < 3; i++ {
 		var tr idResponse
@@ -193,7 +179,6 @@ func TestHTTPEndToEnd(t *testing.T) {
 		ids = append(ids, tr.Data.ID)
 	}
 
-	// Cursor pagination: limit=2 -> [max, mid] then [min].
 	var p1 taskListResponse
 	if st := api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/tasks?team_id=%d&limit=2", team.Data.ID), tokenA, nil, &p1); st != http.StatusOK {
 		t.Fatalf("page1 = %d", st)
@@ -210,19 +195,16 @@ func TestHTTPEndToEnd(t *testing.T) {
 	}
 
 	got := []int64{p1.Data.Tasks[0].ID, p1.Data.Tasks[1].ID, p2.Data.Tasks[0].ID}
-	// Pages must cover exactly the three created tasks, newest first.
 	want := []int64{ids[2], ids[1], ids[0]}
 	if got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Fatalf("pagination mismatch: got %v, want %v", got, want)
 	}
 
-	// Bob (assignee) can change status only.
 	taskID := ids[len(ids)-1]
 	if st := api.do(t, http.MethodPut, fmt.Sprintf("/api/v1/tasks/%d", taskID), tokenB, map[string]any{"assignee_id": bobID}, nil); st != http.StatusForbidden {
 		t.Fatalf("bob reassign = %d, want 403", st)
 	}
 
-	// History and comments.
 	if st := api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/tasks/%d/history", taskID), tokenA, nil, nil); st != http.StatusOK {
 		t.Fatalf("history = %d", st)
 	}
@@ -230,7 +212,6 @@ func TestHTTPEndToEnd(t *testing.T) {
 		t.Fatalf("comment = %d", st)
 	}
 
-	// Stats: owner ok, member forbidden.
 	var stats statsResponse
 	if st := api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/teams/%d/stats", team.Data.ID), tokenA, nil, &stats); st != http.StatusOK {
 		t.Fatalf("stats owner = %d", st)

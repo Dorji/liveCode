@@ -47,7 +47,6 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (string
 	return a.TokenFor(u)
 }
 
-// TokenFor issues a signed JWT for an already-authenticated user.
 func (a *AuthService) TokenFor(u domain.User) (string, error) {
 	claims := Claims{
 		Email: u.Email,
@@ -61,7 +60,6 @@ func (a *AuthService) TokenFor(u domain.User) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(a.secret)
 }
 
-// ParseToken validates a JWT and returns the subject user id.
 func (a *AuthService) ParseToken(tokenStr string) (int64, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

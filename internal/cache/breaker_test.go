@@ -8,7 +8,6 @@ import (
 func TestCircuitBreakerOpensAndRecovers(t *testing.T) {
 	cb := NewCircuitBreaker(2, 30*time.Millisecond)
 
-	// Closed: allows calls; one failure does not yet open.
 	if !cb.Allow() {
 		t.Fatal("first Allow should be true")
 	}
@@ -26,12 +25,10 @@ func TestCircuitBreakerOpensAndRecovers(t *testing.T) {
 		t.Fatalf("state = %v, want open", cb.State())
 	}
 
-	// Open: rejects calls without touching the dependency.
 	if cb.Allow() {
 		t.Fatal("Allow should be false while open")
 	}
 
-	// After cooldown: half-open allows exactly one probe.
 	time.Sleep(40 * time.Millisecond)
 	if !cb.Allow() {
 		t.Fatal("half-open should allow a probe")
@@ -40,7 +37,6 @@ func TestCircuitBreakerOpensAndRecovers(t *testing.T) {
 		t.Fatal("half-open should allow only one probe")
 	}
 
-	// A successful probe closes the breaker.
 	cb.Success()
 	if cb.State() != StateClosed {
 		t.Fatalf("state = %v, want closed after success", cb.State())
@@ -53,7 +49,6 @@ func TestCircuitBreakerOpensAndRecovers(t *testing.T) {
 func TestCircuitBreakerHalfOpenFailureReopens(t *testing.T) {
 	cb := NewCircuitBreaker(1, 20*time.Millisecond)
 
-	// Open immediately (threshold 1).
 	cb.Allow()
 	if !cb.Failure() {
 		t.Fatal("first failure should open the breaker")
@@ -63,7 +58,6 @@ func TestCircuitBreakerHalfOpenFailureReopens(t *testing.T) {
 	if !cb.Allow() {
 		t.Fatal("half-open should allow a probe")
 	}
-	// The probe fails -> reopen.
 	if !cb.Failure() {
 		t.Fatal("half-open failure should reopen the breaker")
 	}

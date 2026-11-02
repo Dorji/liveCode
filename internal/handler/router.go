@@ -7,7 +7,6 @@ import (
 	"taskmanager/internal/service"
 )
 
-// Handlers groups the service dependencies used by the HTTP layer.
 type Handlers struct {
 	Auth  *service.AuthService
 	Teams *service.TeamService

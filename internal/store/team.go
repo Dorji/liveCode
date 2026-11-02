@@ -8,8 +8,6 @@ import (
 	"taskmanager/internal/domain"
 )
 
-// CreateTeamWithOwner creates a team and its creator membership atomically:
-// a team must never exist without its owner.
 func (s *Store) CreateTeamWithOwner(ctx context.Context, name string, userID int64) (domain.Team, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -71,7 +69,6 @@ func (s *Store) ListTeamsForUser(ctx context.Context, userID int64) ([]domain.Te
 	return teams, rows.Err()
 }
 
-// GetMember returns the membership of user in team, or domain.ErrNotFound.
 func (s *Store) GetMember(ctx context.Context, teamID, userID int64) (domain.TeamMember, error) {
 	var m domain.TeamMember
 	var role string
@@ -85,7 +82,6 @@ func (s *Store) GetMember(ctx context.Context, teamID, userID int64) (domain.Tea
 	return m, err
 }
 
-// UpsertMemberRole adds a member or, if already present, changes their role.
 func (s *Store) UpsertMemberRole(ctx context.Context, teamID, userID int64, role domain.Role) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)

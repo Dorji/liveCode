@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// State is the circuit breaker state.
 type State int
 
 const (
@@ -27,8 +26,6 @@ func (s State) String() string {
 	}
 }
 
-// CircuitBreaker is a simple closed/open/half-open breaker that protects an
-// external dependency (Redis) from being hammered while it is failing.
 type CircuitBreaker struct {
 	mu        sync.Mutex
 	state     State
@@ -45,8 +42,6 @@ func NewCircuitBreaker(threshold int, cooldown time.Duration) *CircuitBreaker {
 	return &CircuitBreaker{state: StateClosed, threshold: threshold, cooldown: cooldown}
 }
 
-// Allow reports whether a call may proceed. In half-open it permits exactly one
-// probe; further calls are rejected until that probe resolves.
 func (cb *CircuitBreaker) Allow() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -64,7 +59,6 @@ func (cb *CircuitBreaker) Allow() bool {
 	}
 }
 
-// Success closes the breaker.
 func (cb *CircuitBreaker) Success() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -72,7 +66,6 @@ func (cb *CircuitBreaker) Success() {
 	cb.failures = 0
 }
 
-// Failure records a failed call and reports whether it just opened the breaker.
 func (cb *CircuitBreaker) Failure() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -92,7 +85,6 @@ func (cb *CircuitBreaker) Failure() bool {
 	return false
 }
 
-// State returns the current state (for observability).
 func (cb *CircuitBreaker) State() State {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()

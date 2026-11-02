@@ -1,6 +1,3 @@
-// Package cache implements Redis caching for task lists with graceful
-// degradation: if Redis is unavailable, reads fall back to the database and
-// writes are skipped. A circuit breaker stops hammering Redis while it fails.
 package cache
 
 import (
@@ -22,10 +19,8 @@ type TaskCache struct {
 	breaker *CircuitBreaker
 }
 
-// Option configures a TaskCache.
 type Option func(*TaskCache)
 
-// WithCircuitBreaker overrides the default breaker settings.
 func WithCircuitBreaker(threshold int, cooldown time.Duration) Option {
 	return func(c *TaskCache) {
 		c.breaker = NewCircuitBreaker(threshold, cooldown)
@@ -44,7 +39,6 @@ func New(addr string, ttl time.Duration, opts ...Option) *TaskCache {
 	return c
 }
 
-// BreakerState returns the circuit breaker state (for observability/logs).
 func (c *TaskCache) BreakerState() State { return c.breaker.State() }
 
 func (c *TaskCache) Ping(ctx context.Context) error {
@@ -55,9 +49,7 @@ func genKey(teamID int64) string {
 	return fmt.Sprintf("tasks:gen:%d", teamID)
 }
 
-// Invalidate bumps the per-team generation counter. Cache keys embed the
-// generation, so after a bump old entries are simply never requested again and
-// expire naturally via TTL — no SCAN/DEL fan-out is needed.
+// Invalidate bumps the team generation counter so stale entries are never read again.
 func (c *TaskCache) Invalidate(ctx context.Context, teamID int64) {
 	if !c.breaker.Allow() {
 		return
@@ -91,7 +83,6 @@ func cacheKey(teamID, gen int64, status *domain.TaskStatus, assigneeID *int64, c
 	return fmt.Sprintf("tasks:list:%d:%d:%s:%s:%s:%d", teamID, gen, s, a, c, limit)
 }
 
-// cachedPage is the serialized form stored in Redis (tasks + next cursor).
 type cachedPage struct {
 	Tasks      []domain.Task `json:"tasks"`
 	NextCursor *int64        `json:"next_cursor"`
@@ -143,7 +134,6 @@ func (c *TaskCache) Set(ctx context.Context, teamID int64, status *domain.TaskSt
 	c.breaker.Success()
 }
 
-// fail records a failed Redis call and logs when the breaker opens.
 func (c *TaskCache) fail(err error) {
 	if c.breaker.Failure() {
 		slog.Warn("redis circuit breaker opened", "error", err)

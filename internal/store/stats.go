@@ -8,14 +8,12 @@ import (
 	"taskmanager/internal/domain"
 )
 
-// TopAssignee is one row of the "top assignees" statistic.
 type TopAssignee struct {
 	AssigneeID  int64  `json:"assignee_id"`
 	Name        string `json:"name"`
 	ClosedCount int64  `json:"closed_count"`
 }
 
-// TeamStats is the result of the SQL report for a single team.
 type TeamStats struct {
 	StatusCounts    map[domain.TaskStatus]int64 `json:"status_counts"`
 	TopAssignees    []TopAssignee               `json:"top_assignees"`
@@ -23,16 +21,7 @@ type TeamStats struct {
 	TotalComments   int64                       `json:"total_comments"`
 }
 
-// statsSQL is a single query with CTEs that returns every metric at once:
-//   - team_tasks narrows the working set to one team (access filtering);
-//   - status_stats groups by status;
-//   - top_assignees joins users, filters closed tasks in the last 30 days and
-//     orders by count with LIMIT 3;
-//   - avg_close averages the seconds between creation and closure;
-//   - comment_stats counts comments on the team's tasks.
-//
-// JOIN, GROUP BY, aggregates and date functions (NOW, DATE_SUB, TIMESTAMPDIFF)
-// are all exercised in one statement — no N+1 queries.
+// statsSQL computes all metrics in one CTE query (no N+1).
 const statsSQL = `
 WITH team_tasks AS (
     SELECT id, status, assignee_id, created_at, closed_at

@@ -10,7 +10,7 @@ import (
 	"taskmanager/internal/domain"
 )
 
-// TaskUpdate carries optional update fields; nil pointers mean "no change".
+// nil means "no change".
 type TaskUpdate struct {
 	Title       *string
 	Description *string
@@ -26,8 +26,6 @@ type CreateTaskParams struct {
 	AssigneeID  *int64
 }
 
-// CreateTaskWithHistory inserts a task and records the initial "creation"
-// history entry in a single transaction.
 func (s *Store) CreateTaskWithHistory(ctx context.Context, p CreateTaskParams) (domain.Task, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -63,9 +61,6 @@ func (s *Store) CreateTaskWithHistory(ctx context.Context, p CreateTaskParams) (
 	return s.GetTask(ctx, taskID)
 }
 
-// UpdateTaskWithHistory updates a task with optimistic locking (the version
-// column) and records old/new values for changed fields atomically. It returns
-// domain.ErrConflict when the expected version no longer matches.
 func (s *Store) UpdateTaskWithHistory(ctx context.Context, taskID int64, expectedVersion int, upd TaskUpdate, changedBy int64) (domain.Task, []domain.Change, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -122,7 +117,6 @@ func (s *Store) UpdateTaskWithHistory(ctx context.Context, taskID int64, expecte
 		changes = append(changes, domain.Change{Field: "assignee_id", Old: old.AssigneeID, New: newAssignee})
 	}
 
-	// Nothing actually changed: no history, no version bump.
 	if len(changes) == 0 {
 		if err := tx.Commit(); err != nil {
 			return domain.Task{}, nil, err
@@ -177,16 +171,11 @@ func (s *Store) getTask(ctx context.Context, q queryer, id int64) (domain.Task, 
 	return t, err
 }
 
-// TaskPage is one page of tasks plus a cursor for the next page.
 type TaskPage struct {
 	Tasks      []domain.Task
 	NextCursor *int64
 }
 
-// ListTasks returns the team's tasks with optional filters, ordered by id DESC.
-// It uses cursor (keyset) pagination: cursor is the id of the last item of the
-// previous page (nil for the first page). It fetches limit+1 rows to detect
-// whether a next page exists.
 func (s *Store) ListTasks(ctx context.Context, teamID int64, status *domain.TaskStatus, assigneeID *int64, cursor *int64, limit int) (TaskPage, error) {
 	query := `SELECT id, team_id, title, description, status, created_by, assignee_id,
 	                 created_at, updated_at, closed_at, version

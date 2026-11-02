@@ -31,9 +31,6 @@ type InviteInput struct {
 	Role   string `json:"role"`
 }
 
-// Invite adds a user to a team or changes their role. Only owner/admin may
-// invite; the "owner" role is never granted through invitation and the
-// creator's role can never be changed.
 func (ts *TeamService) Invite(ctx context.Context, callerID, teamID int64, in InviteInput) error {
 	role := domain.Role(in.Role)
 	if !role.Valid() {
@@ -54,7 +51,6 @@ func (ts *TeamService) Invite(ctx context.Context, callerID, teamID int64, in In
 		return domain.ErrForbidden
 	}
 
-	// The target user must exist.
 	if _, err := ts.store.GetUserByID(ctx, in.UserID); err != nil {
 		return err
 	}

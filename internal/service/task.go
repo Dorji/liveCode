@@ -24,8 +24,6 @@ type CreateTaskInput struct {
 	AssigneeID  *int64 `json:"assignee_id"`
 }
 
-// Create creates a task in a team. Any member may create; the creator is the
-// current user. The assignee, if set, must belong to the same team.
 func (ts *TaskService) Create(ctx context.Context, callerID int64, in CreateTaskInput) (domain.Task, error) {
 	if in.Title == "" {
 		return domain.Task{}, domain.ErrBadRequest
@@ -60,11 +58,6 @@ type UpdateTaskInput struct {
 	AssigneeID  *int64             `json:"assignee_id"`
 }
 
-// Update applies an update respecting the role-based editing rules:
-//   - owner/admin: any field;
-//   - creator: title, description, status, assignee (assignee must be in team);
-//   - assignee: status only;
-//   - everyone else: forbidden.
 func (ts *TaskService) Update(ctx context.Context, callerID, taskID int64, in UpdateTaskInput) (domain.Task, error) {
 	task, err := ts.store.GetTask(ctx, taskID)
 	if err != nil {
@@ -111,15 +104,11 @@ func (ts *TaskService) Update(ctx context.Context, callerID, taskID int64, in Up
 	return updated, nil
 }
 
-// TaskListResult is a page of tasks plus the cursor for the next page.
 type TaskListResult struct {
 	Tasks      []domain.Task `json:"tasks"`
 	NextCursor *int64        `json:"next_cursor,omitempty"`
 }
 
-// List returns the team's tasks with filters and cursor pagination. A Redis
-// cache is consulted and populated using a key that includes the team,
-// filters, cursor and limit.
 func (ts *TaskService) List(ctx context.Context, callerID int64, teamID int64, status *domain.TaskStatus, assigneeID *int64, cursor *int64, limit int) (TaskListResult, error) {
 	if _, err := ts.memberRole(ctx, teamID, callerID); err != nil {
 		return TaskListResult{}, err
@@ -180,8 +169,6 @@ func (ts *TaskService) Comments(ctx context.Context, callerID, taskID int64) ([]
 	return ts.store.ListComments(ctx, taskID)
 }
 
-// memberRole returns the caller's role in a team or domain.ErrForbidden when
-// they are not a member.
 func (ts *TaskService) memberRole(ctx context.Context, teamID, userID int64) (domain.Role, error) {
 	m, err := ts.store.GetMember(ctx, teamID, userID)
 	if err != nil {
@@ -193,8 +180,6 @@ func (ts *TaskService) memberRole(ctx context.Context, teamID, userID int64) (do
 	return m.Role, nil
 }
 
-// requireMember ensures userID is a member of teamID; otherwise returns
-// domain.ErrAssigneeNotInTeam (used for assignee validation).
 func (ts *TaskService) requireMember(ctx context.Context, teamID, userID int64) error {
 	if _, err := ts.store.GetMember(ctx, teamID, userID); err != nil {
 		if err == domain.ErrNotFound {

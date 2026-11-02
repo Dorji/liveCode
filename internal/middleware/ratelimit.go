@@ -10,7 +10,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// RateLimiter is an in-memory per-client (IP) token-bucket rate limiter.
 type RateLimiter struct {
 	mu       sync.Mutex
 	limiters map[string]*entry
@@ -37,12 +36,10 @@ func NewRateLimiter(rps float64, burst int) *RateLimiter {
 	return rl
 }
 
-// Stop shuts down the background cleanup goroutine.
 func (rl *RateLimiter) Stop() {
 	rl.stopOnce.Do(func() { close(rl.stop) })
 }
 
-// Middleware rejects requests that exceed the per-client limit with 429.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !rl.limiterFor(clientIP(r)).Allow() {
@@ -68,8 +65,6 @@ func (rl *RateLimiter) limiterFor(key string) *rate.Limiter {
 	return e.limiter
 }
 
-// cleanup periodically drops limiters idle for longer than idleTimeout so the
-// map does not grow without bound as clients come and go.
 func (rl *RateLimiter) cleanup() {
 	const idleTimeout = 5 * time.Minute
 	ticker := time.NewTicker(time.Minute)
@@ -91,8 +86,6 @@ func (rl *RateLimiter) cleanup() {
 	}
 }
 
-// clientIP returns the client IP, preferring the first X-Forwarded-For entry
-// when the service runs behind a proxy.
 func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		if i := strings.IndexByte(xff, ','); i >= 0 {

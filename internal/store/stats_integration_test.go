@@ -1,12 +1,5 @@
 //go:build integration
 
-// Integration test for the SQL report (TeamStats). It requires a running
-// MySQL. Run with:
-//
-//	TEST_MYSQL_DSN="taskuser:taskpass@tcp(127.0.0.1:3306)/taskdb_test?parseTime=true&loc=UTC" \
-//	  go test -tags integration ./internal/store/ -run TestTeamStats -v
-//
-// The test skips itself when the database is unreachable.
 package store_test
 
 import (
@@ -55,8 +48,6 @@ func TestTeamStats(t *testing.T) {
 	seedMember(t, ctx, st.DB(), teamID, bobID, "member")
 	seedMember(t, ctx, st.DB(), teamID, carolID, "member")
 
-	// Bob closes 2 tasks within the last 30 days, Carol 1; Bob also has an old
-	// closed task (outside 30 days). This shapes both top_assignees and avg close.
 	t1 := seedTask(t, ctx, st.DB(), teamID, "t1", aliceID, idp(bobID), now.Add(-20*24*time.Hour), now.Add(-10*24*time.Hour), "done")
 	t2 := seedTask(t, ctx, st.DB(), teamID, "t2", aliceID, idp(bobID), now.Add(-50*24*time.Hour), now.Add(-40*24*time.Hour), "done")
 	_ = seedTask(t, ctx, st.DB(), teamID, "t3", aliceID, idp(carolID), now.Add(-15*24*time.Hour), now.Add(-5*24*time.Hour), "done")

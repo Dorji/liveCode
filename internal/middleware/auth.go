@@ -1,5 +1,3 @@
-// Package middleware provides HTTP middleware. Auth depends only on a small
-// TokenParser interface so it stays decoupled from the concrete JWT service.
 package middleware
 
 import (
@@ -16,7 +14,6 @@ type contextKey string
 
 const userIDKey contextKey = "user_id"
 
-// UserID returns the authenticated user id stored in the context.
 func UserID(ctx context.Context) (int64, bool) {
 	id, ok := ctx.Value(userIDKey).(int64)
 	return id, ok
